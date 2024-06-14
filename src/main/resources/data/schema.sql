@@ -1,0 +1,8 @@
+BEGIN;
+
+--CREATE TABLE test(
+-- id SERIAL PRIMARY KEY,
+-- name CHARACTER VARYING(255) NOT NULL
+--);
+
+END;
