@@ -1,5 +1,6 @@
 package com.example.securedoc.service.Impl;
 
+import com.example.securedoc.cache.CacheStore;
 import com.example.securedoc.domain.RequestContext;
 import com.example.securedoc.entity.ConfirmationEntity;
 import com.example.securedoc.entity.CredentialEntity;
@@ -21,10 +22,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
 
 import static com.example.securedoc.utils.UserUtils.createUserEntity;
+import static java.time.LocalDateTime.now;
 
 @Service
 @Transactional(rollbackOn = Exception.class)
@@ -37,6 +40,8 @@ public class UserServiceImpl implements UserService {
     private final CredentialRepository credentialRepository;
     private final ConfirmationRepository confirmationRepository;
     private final ApplicationEventPublisher publisher;
+
+    private final CacheStore<String, Integer> userCache;
 
     @Override
     public void createUser(String firstName, String lastName, String email, String password) {
@@ -75,9 +80,26 @@ public class UserServiceImpl implements UserService {
         switch ( loginType){
             case LOGIN_ATTEMPT -> {
 
+                if(userCache.get(user.getEmail())==null){
+                    user.setLoginAttempts(0);
+                    user.setAccountNonLocked(true);
+                }
+                user.setLoginAttempts(user.getLoginAttempts()+1);
+                userCache.put(user.getEmail(), user.getLoginAttempts());
+
+                if (userCache.get(user.getEmail())>5){
+                    user.setAccountNonLocked(false);
+                }
+
             }
-            case LOGIN_SUCCESS -> {}
+            case LOGIN_SUCCESS -> {
+                user.setLoginAttempts(0);
+                user.setAccountNonLocked(true);
+                user.setLastLogin(now());
+                userCache.evict(user.getEmail());
+            }
         }
+        userRespository.save(user);
     }
 
     private UserEntity getUserEntityByEmail(String email) {
